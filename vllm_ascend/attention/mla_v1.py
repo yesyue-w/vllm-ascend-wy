@@ -994,15 +994,16 @@ class AscendMLAImpl(MLAAttentionImpl):
                                rope_dim,
                                dtype=q_nope.dtype,
                                device=q_nope.device)
-            if get_ascend_device_type() == AscendDeviceType._910_95:
+            if get_ascend_device_type() == AscendDeviceType.A5:
                 torch_npu.npu_gather_pa_kv_cache(
                     cache_kv_c,
                     cache_k_pe,
                     prefill_metadata.block_table,
                     context_seq_len_npu,
-                    seq_offset=prefill_metadata.chunked_context.starts[i])
+                    seq_offset=prefill_metadata.chunked_context.starts[i],
                     key=kv_c_normed,
                     value=k_pe,
+                )
             else:
                 torch_npu.atb.npu_paged_cache_load(
                     cache_kv_c,
@@ -1022,7 +1023,7 @@ class AscendMLAImpl(MLAAttentionImpl):
             k_pe = k_pe.expand((*k_nope.shape[:-1], -1))
 
             mask = attn_metadata.attn_mask
-            if get_ascend_device_type() == AscendDeviceType._910_95:
+            if get_ascend_device_type() == AscendDeviceType.A5:
                 prefix_output, prefix_lse = torch_npu.npu_fused_infer_attention_score_v2(
                     query=q_nope,
                     key=k_nope,
@@ -1081,14 +1082,14 @@ class AscendMLAImpl(MLAAttentionImpl):
                                num_tokens,
                                dtype=torch.float32,
                                device=q_nope.device)
-        if get_ascend_device_type() == AscendDeviceType._910_95:
+        if get_ascend_device_type() == AscendDeviceType.A5:
             attn_output, attn_lse = torch_npu.npu_fused_infer_attention_score_v2(
                     query=q_nope,
                     key=k_nope,
                     value=value,
                     query_rope=q_pe,
                     key_rope=k_pe,
-                    atten_mask=self.prefill_mask.to(torch.bool),
+                    atten_mask=attn_metadata.attn_mask.to(torch.bool),
                     actual_seq_qlen=attn_metadata.prefill.query_lens.cumsum(0),
                     actual_seq_kvlen=attn_metadata.prefill.query_lens.cumsum(0),
                     num_query_heads=self.num_heads,
